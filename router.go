@@ -1,11 +1,16 @@
 package main
 
 import (
+	"database/sql"
 	"fmt"
+	"log"
 	"net/http"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 type Route struct {
+	id   int64
 	path string
 	dest string
 }
@@ -16,12 +21,47 @@ type Router struct {
 
 func NewRouter() *Router {
 	router := &Router{}
-	router.AddRoute("/google", "http://google.com")
+
+	db, err := sql.Open("sqlite3", "./goto.db")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer db.Close()
+
+	sql := `CREATE TABLE IF NOT EXISTS redirects (
+            id INTEGER NOT NULL PRIMARY KEY,
+            path TEXT,
+            dest TEXT,
+            comment TEXT
+          );`
+	_, err = db.Exec(sql)
+	if err != nil {
+		fmt.Printf("%q: %s\n", err, sql)
+		return nil
+	}
+
+	rows, err := db.Query("SELECT id, path, dest FROM redirects")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var id int64
+		var path string
+		var dest string
+
+		rows.Scan(&id, &path, &dest)
+		router.AddRoute(id, path, dest)
+	}
+
+	fmt.Printf("Loaded %d paths from database\n", len(router.routes))
+
 	return router
 }
 
-func (r *Router) AddRoute(path string, dest string) {
-	r.routes = append(r.routes, &Route{path, dest})
+func (r *Router) AddRoute(id int64, path string, dest string) {
+	r.routes = append(r.routes, &Route{id, path, dest})
 }
 
 func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
