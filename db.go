@@ -44,6 +44,10 @@ func initDB(file string) *gorp.DbMap {
 	return dbmap
 }
 
+func closeDB() {
+	db.Db.Close()
+}
+
 func loadRoutes() []Route {
 	var routes []Route
 	_, err := db.Select(&routes, "SELECT id, path, dest FROM routes")
