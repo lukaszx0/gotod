@@ -70,7 +70,7 @@ func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 
 func (r *Router) makeRedirect(rw http.ResponseWriter, req *http.Request, route *Route) {
 	http.Redirect(rw, req, route.dest, 302)
-	r.incCounter(route)
+	go r.incCounter(route)
 }
 
 func (r *Router) incCounter(route *Route) {
