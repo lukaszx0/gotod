@@ -1,12 +1,9 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
-
-	_ "github.com/mattn/go-sqlite3"
 )
 
 type Route struct {
@@ -22,25 +19,20 @@ type Router struct {
 func NewRouter() *Router {
 	router := &Router{}
 
-	db, err := sql.Open("sqlite3", "./goto.db")
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer db.Close()
-
-	sql := `CREATE TABLE IF NOT EXISTS redirects (
+	sql := `CREATE TABLE IF NOT EXISTS routes (
             id INTEGER NOT NULL PRIMARY KEY,
-            path TEXT,
-            dest TEXT,
-            comment TEXT
+            path TEXT NOT NULL UNIQUE,
+            dest TEXT NOT NULL UNIQUE,
+            comment TEXT,
+            counter INTEGER DEFAULT 0
           );`
-	_, err = db.Exec(sql)
+	_, err := db.Exec(sql)
 	if err != nil {
 		fmt.Printf("%q: %s\n", err, sql)
 		return nil
 	}
 
-	rows, err := db.Query("SELECT id, path, dest FROM redirects")
+	rows, err := db.Query("SELECT id, path, dest FROM routes")
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -67,7 +59,7 @@ func (r *Router) AddRoute(id int64, path string, dest string) {
 func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	for _, route := range r.routes {
 		if route.path == req.URL.Path {
-			r.makeRedirect(rw, req, route.dest)
+			r.makeRedirect(rw, req, route)
 			fmt.Printf("action=matched path=%s dest=%s\n", route.path, route.dest)
 			return
 		}
@@ -76,6 +68,20 @@ func (r *Router) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	http.NotFound(rw, req)
 }
 
-func (r *Router) makeRedirect(rw http.ResponseWriter, req *http.Request, dest string) {
-	http.Redirect(rw, req, dest, 302)
+func (r *Router) makeRedirect(rw http.ResponseWriter, req *http.Request, route *Route) {
+	http.Redirect(rw, req, route.dest, 302)
+	r.incCounter(route)
+}
+
+func (r *Router) incCounter(route *Route) {
+	stmt, err := db.Prepare("UPDATE routes SET counter = counter + 1 WHERE id = ?")
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer stmt.Close()
+
+	_, err = stmt.Exec(route.id)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
