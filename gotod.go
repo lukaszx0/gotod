@@ -1,20 +1,21 @@
 package main
 
 import (
-	"database/sql"
 	"fmt"
 	"log"
 	"net/http"
 	"time"
 
+	"github.com/go-gorp/gorp"
+
 	_ "github.com/mattn/go-sqlite3"
 )
 
-var db *sql.DB
+var db *gorp.DbMap
 
 func main() {
-	initDB("./goto.db")
-	defer db.Close()
+	db = initDB("./goto.db")
+	defer db.Db.Close()
 
 	router := NewRouter()
 	server := http.Server{
@@ -29,13 +30,5 @@ func main() {
 	err := server.ListenAndServe()
 	if err != nil {
 		log.Fatal("ListenAndServe: ", err)
-	}
-}
-
-func initDB(file string) {
-	var err error
-	db, err = sql.Open("sqlite3", file)
-	if err != nil {
-		log.Fatal(err)
 	}
 }
